@@ -61,8 +61,8 @@ export interface ServerOptions {
    * value where false means that the request is rejected, and err is an error code.
    */
   allowRequest?: (
-    req: IncomingMessage,
-    fn: (err: string | null | undefined, success: boolean) => void
+      req: IncomingMessage,
+      fn: (err: string | null | undefined, success: boolean) => void
   ) => void;
   /**
    * the low-level transports that are enabled
@@ -133,33 +133,33 @@ export abstract class BaseServer extends EventEmitter {
     this.clientsCount = 0;
 
     this.opts = Object.assign(
-      {
-        wsEngine: DEFAULT_WS_ENGINE,
-        pingTimeout: 20000,
-        pingInterval: 25000,
-        upgradeTimeout: 10000,
-        maxHttpBufferSize: 1e6,
-        transports: Object.keys(transports),
-        allowUpgrades: true,
-        httpCompression: {
-          threshold: 1024
+        {
+          wsEngine: DEFAULT_WS_ENGINE,
+          pingTimeout: 20000,
+          pingInterval: 25000,
+          upgradeTimeout: 10000,
+          maxHttpBufferSize: 1e6,
+          transports: Object.keys(transports),
+          allowUpgrades: true,
+          httpCompression: {
+            threshold: 1024
+          },
+          cors: false,
+          allowEIO3: false
         },
-        cors: false,
-        allowEIO3: false
-      },
-      opts
+        opts
     );
 
     if (opts.cookie) {
       this.opts.cookie = Object.assign(
-        {
-          name: "io",
-          path: "/",
-          // @ts-ignore
-          httpOnly: opts.cookie.path !== false,
-          sameSite: "lax"
-        },
-        opts.cookie
+          {
+            name: "io",
+            path: "/",
+            // @ts-ignore
+            httpOnly: opts.cookie.path !== false,
+            sameSite: "lax"
+          },
+          opts.cookie
       );
     }
 
@@ -169,10 +169,10 @@ export abstract class BaseServer extends EventEmitter {
 
     if (opts.perMessageDeflate) {
       this.opts.perMessageDeflate = Object.assign(
-        {
-          threshold: 1024
-        },
-        opts.perMessageDeflate
+          {
+            threshold: 1024
+          },
+          opts.perMessageDeflate
       );
     }
 
@@ -221,6 +221,15 @@ export abstract class BaseServer extends EventEmitter {
 
     // sid check
     const sid = req._query.sid;
+    const isSidEmpty = (sid === undefined || sid == null || sid.length <= 0 || sid == '');
+    /**
+     * empty check
+     * when we pass empty sid it setting a default sid
+     * same token can be used by different users/sessions
+     */
+    if (isSidEmpty) {
+      fn(Server.errors.EMPTY_SID);
+    }
     if (sid) {
       if (!this.clients.hasOwnProperty(sid)) {
         debug('unknown sid "%s"', sid);
@@ -306,7 +315,7 @@ export abstract class BaseServer extends EventEmitter {
         req,
         code: Server.errors.UNSUPPORTED_PROTOCOL_VERSION,
         message:
-          Server.errorMessages[Server.errors.UNSUPPORTED_PROTOCOL_VERSION],
+            Server.errorMessages[Server.errors.UNSUPPORTED_PROTOCOL_VERSION],
         context: {
           protocol
         }
@@ -407,7 +416,8 @@ export abstract class BaseServer extends EventEmitter {
     BAD_HANDSHAKE_METHOD: 2,
     BAD_REQUEST: 3,
     FORBIDDEN: 4,
-    UNSUPPORTED_PROTOCOL_VERSION: 5
+    UNSUPPORTED_PROTOCOL_VERSION: 5,
+    EMPTY_SID: 6
   };
 
   static errorMessages = {
@@ -416,7 +426,8 @@ export abstract class BaseServer extends EventEmitter {
     2: "Bad handshake method",
     3: "Bad request",
     4: "Forbidden",
-    5: "Unsupported protocol version"
+    5: "Unsupported protocol version",
+    6: "Empty Sid Passed"
   };
 }
 
@@ -514,7 +525,7 @@ export class Server extends BaseServer {
         this.clients[req._query.sid].transport.onRequest(req);
       } else {
         const closeConnection = (errorCode, errorContext) =>
-          abortRequest(res, errorCode, errorContext);
+            abortRequest(res, errorCode, errorContext);
         this.handshake(req._query.transport, req, closeConnection);
       }
     };
@@ -568,8 +579,8 @@ export class Server extends BaseServer {
     websocket.on("error", onUpgradeError);
 
     if (
-      transports[req._query.transport] !== undefined &&
-      !transports[req._query.transport].prototype.handlesUpgrades
+        transports[req._query.transport] !== undefined &&
+        !transports[req._query.transport].prototype.handlesUpgrades
     ) {
       debug("transport doesnt handle upgraded requests");
       websocket.close();
@@ -613,7 +624,7 @@ export class Server extends BaseServer {
       websocket.removeListener("error", onUpgradeError);
 
       const closeConnection = (errorCode, errorContext) =>
-        abortUpgrade(socket, errorCode, errorContext);
+          abortUpgrade(socket, errorCode, errorContext);
       this.handshake(req._query.transport, req, closeConnection);
     }
 
@@ -696,16 +707,16 @@ export class Server extends BaseServer {
 function abortRequest(res, errorCode, errorContext) {
   const statusCode = errorCode === Server.errors.FORBIDDEN ? 403 : 400;
   const message =
-    errorContext && errorContext.message
-      ? errorContext.message
-      : Server.errorMessages[errorCode];
+      errorContext && errorContext.message
+          ? errorContext.message
+          : Server.errorMessages[errorCode];
 
   res.writeHead(statusCode, { "Content-Type": "application/json" });
   res.end(
-    JSON.stringify({
-      code: errorCode,
-      message
-    })
+      JSON.stringify({
+        code: errorCode,
+        message
+      })
   );
 }
 
@@ -720,9 +731,9 @@ function abortRequest(res, errorCode, errorContext) {
  */
 
 function abortUpgrade(
-  socket,
-  errorCode,
-  errorContext: { message?: string } = {}
+    socket,
+    errorCode,
+    errorContext: { message?: string } = {}
 ) {
   socket.on("error", () => {
     debug("ignoring error from closed connection");
@@ -731,7 +742,7 @@ function abortUpgrade(
     const message = errorContext.message || Server.errorMessages[errorCode];
     const length = Buffer.byteLength(message);
     socket.write(
-      "HTTP/1.1 400 Bad Request\r\n" +
+        "HTTP/1.1 400 Bad Request\r\n" +
         "Connection: close\r\n" +
         "Content-type: text/html\r\n" +
         "Content-Length: " +
